@@ -17,6 +17,8 @@ class _MyHomePageState extends State<MyHomePage> {
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
   late StreamSubscription<List<PurchaseDetails>> _subscription;
   List<ProductDetails> _products = <ProductDetails>[];
+  List<PurchaseDetails> _purchases = <PurchaseDetails>[];
+  int _credits = 0;
   bool _isAvailable = true;
   var _notFoundIds = <String>[];
   bool _loading = false;
@@ -35,11 +37,14 @@ class _MyHomePageState extends State<MyHomePage> {
       debugPrint("error: ${e.toString()}");
     });
     initStoreInfo();
+    debugPrint('Init state');
     super.initState();
   }
 
   Future<void> initStoreInfo() async {
     final bool isAvailable = await _inAppPurchase.isAvailable();
+    debugPrint(isAvailable.toString());
+
     if (!isAvailable) {
       setState(() {
         _isAvailable = isAvailable;
@@ -47,6 +52,8 @@ class _MyHomePageState extends State<MyHomePage> {
         _notFoundIds = <String>[];
         _loading = false;
       });
+      debugPrint('Not available');
+
       return;
     }
     Set<String> _subcriptionProductId = prod_id;
@@ -61,6 +68,8 @@ class _MyHomePageState extends State<MyHomePage> {
         debugPrint('_notFoundIds : ${_notFoundIds.toList()}');
         _loading = false;
       });
+      debugPrint('Error');
+
       return;
     }
     if (productDetailsResponse.productDetails.isEmpty) {
@@ -74,6 +83,8 @@ class _MyHomePageState extends State<MyHomePage> {
             'productDetailResponse error: ${productDetailsResponse.error}');
         _loading = false;
       });
+      debugPrint('Empty');
+
       return;
     } else {
       debugPrint('=======}');
@@ -86,6 +97,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _purchasePending = false;
       _loading = false;
     });
+    debugPrint(_products[0].id.toString());
   }
 
   _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
@@ -94,20 +106,89 @@ class _MyHomePageState extends State<MyHomePage> {
         // to-do implementation of pending purchase situation
       } else if (purchaseDetails.status == PurchaseStatus.purchased ||
           purchaseDetails.status == PurchaseStatus.restored) {
-            //// to-do implementation of after purchased 
-            verifyAndDeliverProduct(purchaseDetails);
-          }else if(purchaseDetails.status == PurchaseStatus.error){
-        handleError(purchaseDetails.error);
+        //// to-do implementation of after purchased
+        _purchases.add(purchaseDetails);
+        verifyAndDeliverProducts(purchaseDetails);
+      } else if (purchaseDetails.status == PurchaseStatus.error) {
+        //   handleError(purchaseDetails.error);
 
-          }
-          if(purchaseDetails.pendingCompletePurchase){
-            await _inAppPurchase.completePurchase(purchaseDetails);
-          }
+      }
+      if (purchaseDetails.pendingCompletePurchase) {
+        await _inAppPurchase.completePurchase(purchaseDetails);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold();
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          _isAvailable ? 'Open for business' : 'Store not available',
+        ),
+      ),
+      body: Center(
+          child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var prod in _products)
+            if (_hasPurchased(prod.id) != null) ...[
+              Icon(Icons.diamond),
+              Text(
+                _credits.toString(),
+                style: TextStyle(fontSize: 60),
+              ),
+              ElevatedButton(
+                onPressed: () => _spendCredit(_hasPurchased(prod.id)),
+                child: Text('Consume'),
+              )
+            ] else ...[
+              Text(
+                prod.title,
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(prod.description),
+              Text(
+                prod.price,
+                style: TextStyle(color: Colors.greenAccent, fontSize: 60),
+              ),
+              ElevatedButton(
+                  onPressed: () => _buyProduct(prod), child: Text('Buy it'))
+            ]
+        ],
+      )),
+    );
+  }
+
+  dynamic _hasPurchased(String productId) {
+    if (_purchases.isNotEmpty) {
+      return _purchases.firstWhere(
+        (purchase) => purchase.productID == productId,
+      );
+    }
+    return null;
+  }
+
+  void verifyAndDeliverProducts(PurchaseDetails purchaseDetails) {
+    PurchaseDetails? purchase = _hasPurchased(purchaseDetails.productID);
+
+    if (purchase != null && purchase.status == PurchaseStatus.purchased) {
+      _credits = 10;
+      setState(() {});
+    }
+  }
+
+  void _buyProduct(ProductDetails prod) async {
+    
+    final PurchaseParam purchaseParam = PurchaseParam(productDetails: prod);
+    var purchased =
+        await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam);
+  }
+
+  _spendCredit(PurchaseDetails? hasPurchased) async{
+    setState(() {
+      _credits--;
+    });
+    
   }
 }
