@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:in_app_purchase/in_app_purchase.dart';
+import './stars_view.dart';
+import './premium_view.dart';
 import 'dart:io';
 
-Set<String> prod_id = {'gems_test'};
+Set<String> prod_id = {'gems_test', 'star_test', 'premium_access'};
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});
@@ -30,9 +32,11 @@ class _MyHomePageState extends State<MyHomePage> {
     final Stream<List<PurchaseDetails>> purchasedUpdated =
         _inAppPurchase.purchaseStream;
     _subscription = purchasedUpdated.listen((PurchaseDetailsList) {
+      debugPrint('running');
       _listenToPurchaseUpdated(PurchaseDetailsList);
     }, onDone: () {
       _subscription.cancel();
+      debugPrint('-----|> Cancel');
     }, onError: (Object e) {
       debugPrint("error: ${e.toString()}");
     });
@@ -43,9 +47,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> initStoreInfo() async {
     final bool isAvailable = await _inAppPurchase.isAvailable();
-    debugPrint(isAvailable.toString());
+    debugPrint(_isAvailable.toString());
 
-    if (!isAvailable) {
+    if (!_isAvailable) {
       setState(() {
         _isAvailable = isAvailable;
         _products = <ProductDetails>[];
@@ -59,6 +63,7 @@ class _MyHomePageState extends State<MyHomePage> {
     Set<String> _subcriptionProductId = prod_id;
     final ProductDetailsResponse productDetailsResponse =
         await _inAppPurchase.queryProductDetails(_subcriptionProductId);
+
     if (productDetailsResponse.error != null) {
       setState(() {
         _queryProductError = productDetailsResponse.error!.message;
@@ -90,14 +95,14 @@ class _MyHomePageState extends State<MyHomePage> {
       debugPrint('=======}');
     }
     setState(() {
-      _isAvailable = _isAvailable;
+      _isAvailable = isAvailable;
       _products = productDetailsResponse.productDetails;
       _notFoundIds = productDetailsResponse.notFoundIDs;
       debugPrint('No Product :: ${_notFoundIds.toList()}');
       _purchasePending = false;
       _loading = false;
     });
-    debugPrint(_products[0].id.toString());
+    debugPrint(_products[2].id);
   }
 
   _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
@@ -133,27 +138,55 @@ class _MyHomePageState extends State<MyHomePage> {
         children: [
           for (var prod in _products)
             if (_hasPurchased(prod.id) != null) ...[
-              Icon(Icons.diamond),
-              Text(
-                _credits.toString(),
-                style: TextStyle(fontSize: 60),
-              ),
-              ElevatedButton(
-                onPressed: () => _spendCredit(_hasPurchased(prod.id)),
-                child: Text('Consume'),
-              )
+              if (prod.id == 'gems_test') ...[
+                const Icon(Icons.diamond),
+                Text(
+                  _credits.toString(),
+                  style: const TextStyle(fontSize: 60),
+                ),
+                ElevatedButton(
+                  onPressed: () => _spendCredit(_hasPurchased(prod.id)),
+                  child: const Text('Consume'),
+                ),
+              ] else if (prod.id == 'star_test') ...[
+               const Icon(Icons.star),
+               const Text(
+                    'Succesfully delivered one time purchased stars now you can see stars'),
+                ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const StarsView(),
+                          ));
+                    },
+                    child: const Text('See Stars'))
+              ] else if (prod.id == 'premium_access') ...[
+               const Icon(Icons.workspace_premium_outlined),
+              const  Text(
+                    'Succesfully delivered premium features, valid for one day'),
+                ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PremiumView(),
+                          ));
+                    },
+                    child: const Text('Access'))
+              ]
             ] else ...[
               Text(
                 prod.title,
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               Text(prod.description),
               Text(
                 prod.price,
-                style: TextStyle(color: Colors.greenAccent, fontSize: 60),
+                style: const TextStyle(color: Colors.greenAccent, fontSize: 60),
               ),
               ElevatedButton(
-                  onPressed: () => _buyProduct(prod), child: Text('Buy it'))
+                  onPressed: () => _buyProduct(prod), child: const Text('Buy it'))
             ]
         ],
       )),
@@ -172,23 +205,44 @@ class _MyHomePageState extends State<MyHomePage> {
   void verifyAndDeliverProducts(PurchaseDetails purchaseDetails) {
     PurchaseDetails? purchase = _hasPurchased(purchaseDetails.productID);
 
-    if (purchase != null && purchase.status == PurchaseStatus.purchased) {
+    if (purchase != null &&
+        purchase.status == PurchaseStatus.purchased &&
+        purchaseDetails.productID == 'gems_test') {
       _credits = 10;
+      setState(() {});
+    } else {
       setState(() {});
     }
   }
 
   void _buyProduct(ProductDetails prod) async {
-    
+    debugPrint(prod.id);
     final PurchaseParam purchaseParam = PurchaseParam(productDetails: prod);
-    var purchased =
-        await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam);
+    debugPrint(
+        'Product details =====> ${purchaseParam.productDetails.rawPrice}');
+    switch (prod.id) {
+      case 'gems_test':
+        var purchased =
+            await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam);
+        break;
+      case 'star_test':
+        await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+        break;
+      case 'premium_access':
+        await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+        break;
+    }
+    
   }
 
-  _spendCredit(PurchaseDetails? hasPurchased) async{
+  _spendCredit(PurchaseDetails hasPurchased) async {
     setState(() {
       _credits--;
     });
-    
+    if (_credits == 1) {
+      _purchases.removeWhere(
+          (element) => element.productID == hasPurchased.productID);
+      setState(() {});
+    }
   }
 }
