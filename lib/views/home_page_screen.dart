@@ -29,6 +29,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void initState() {
+    
     final Stream<List<PurchaseDetails>> purchasedUpdated =
         _inAppPurchase.purchaseStream;
     _subscription = purchasedUpdated.listen((PurchaseDetailsList) {
@@ -132,64 +133,106 @@ class _MyHomePageState extends State<MyHomePage> {
           _isAvailable ? 'Open for business' : 'Store not available',
         ),
       ),
-      body: Center(
+      body: SingleChildScrollView(
+        child: SizedBox(
+          width: double.infinity,
           child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var prod in _products)
-            if (_hasPurchased(prod.id) != null) ...[
-              if (prod.id == 'gems_test') ...[
-                const Icon(Icons.diamond),
-                Text(
-                  _credits.toString(),
-                  style: const TextStyle(fontSize: 60),
-                ),
-                ElevatedButton(
-                  onPressed: () => _spendCredit(_hasPurchased(prod.id)),
-                  child: const Text('Consume'),
-                ),
-              ] else if (prod.id == 'star_test') ...[
-               const Icon(Icons.star),
-               const Text(
-                    'Succesfully delivered one time purchased stars now you can see stars'),
-                ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const StarsView(),
-                          ));
-                    },
-                    child: const Text('See Stars'))
-              ] else if (prod.id == 'premium_access') ...[
-               const Icon(Icons.workspace_premium_outlined),
-              const  Text(
-                    'Succesfully delivered premium features, valid for one day'),
-                ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const PremiumView(),
-                          ));
-                    },
-                    child: const Text('Access'))
-              ]
-            ] else ...[
-              Text(
-                prod.title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(prod.description),
-              Text(
-                prod.price,
-                style: const TextStyle(color: Colors.greenAccent, fontSize: 60),
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(
+                height: 50,
               ),
               ElevatedButton(
-                  onPressed: () => _buyProduct(prod), child: const Text('Buy it'))
-            ]
-        ],
-      )),
+                  onPressed: () async{
+                   await restorePurchases();
+                  } ,
+                  child: const Text('Restore purchases')),
+              const SizedBox(
+                height: 50,
+              ),
+              for (var prod in _products)
+                if (_hasPurchased(prod.id) != null)
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (prod.id == 'gems_test')
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.diamond),
+                            Text(
+                              _credits.toString(),
+                              style: const TextStyle(fontSize: 60),
+                            ),
+                            ElevatedButton(
+                              onPressed: () =>
+                                  _spendCredit(_hasPurchased(prod.id)),
+                              child: const Text('Consume'),
+                            ),
+                          ],
+                        )
+                      else if (prod.id == 'star_test')
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.star),
+                            const Text(
+                                'Succesfully delivered one time purchased stars now you can see stars'),
+                            ElevatedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const StarsView(),
+                                      ));
+                                },
+                                child: const Text('See Stars'))
+                          ],
+                        )
+                      else if (prod.id == 'premium_access')
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.workspace_premium_outlined),
+                            const Text(
+                                'Succesfully delivered premium features, valid for one day'),
+                            ElevatedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const PremiumView(),
+                                      ));
+                                },
+                                child: const Text('Access'))
+                          ],
+                        )
+                    ],
+                  )
+                else
+                  Column(
+                    children: [
+                      Text(
+                        prod.title,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(prod.description),
+                      Text(
+                        prod.price,
+                        style: const TextStyle(
+                            color: Colors.greenAccent, fontSize: 60),
+                      ),
+                      ElevatedButton(
+                          onPressed: () => _buyProduct(prod),
+                          child: const Text('Buy it'))
+                    ],
+                  )
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -206,13 +249,10 @@ class _MyHomePageState extends State<MyHomePage> {
     PurchaseDetails? purchase = _hasPurchased(purchaseDetails.productID);
 
     if (purchase != null &&
-        purchase.status == PurchaseStatus.purchased &&
-        purchaseDetails.productID == 'gems_test') {
+        purchase.status == PurchaseStatus.purchased) {
       _credits = 10;
       setState(() {});
-    } else {
-      setState(() {});
-    }
+    } 
   }
 
   void _buyProduct(ProductDetails prod) async {
@@ -232,7 +272,6 @@ class _MyHomePageState extends State<MyHomePage> {
         await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
         break;
     }
-    
   }
 
   _spendCredit(PurchaseDetails hasPurchased) async {
@@ -244,5 +283,13 @@ class _MyHomePageState extends State<MyHomePage> {
           (element) => element.productID == hasPurchased.productID);
       setState(() {});
     }
+  }
+
+  Future<void> restorePurchases() async {
+        debugPrint('running restore purchases');
+
+    await _inAppPurchase.restorePurchases();
+    debugPrint('restored purchases');
+    setState(() {});
   }
 }
